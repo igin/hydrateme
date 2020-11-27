@@ -17,7 +17,13 @@ func BuildRoutes() []Route {
 			"Hydrations",
 			"GET",
 			"/hydrate",
-			HydrateRoute,
+			GetHydrateRoute,
+		},
+		{
+			"Hydrations",
+			"POST",
+			"/hydrate",
+			CreateHydrateRoute,
 		},
 		{
 			"Default Route",

@@ -6,10 +6,14 @@ import (
 
 // BuildRouter builds a router containing all the handlers of this api
 func BuildRouter() *mux.Router {
-	r := mux.NewRouter()
+	router := mux.NewRouter()
 	routes := BuildRoutes()
 	for _, route := range routes {
-		r.HandleFunc(route.Pattern, route.HandlerFunc)
+		router.
+			Methods(route.Method).
+			Path(route.Pattern).
+			Name(route.Name).
+			Handler(route.HandlerFunc)
 	}
-	return r
+	return router
 }

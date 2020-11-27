@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,12 @@ func TestHydrateEndpointReturns200(t *testing.T) {
 func TestHydrateEndpointReturnsMessage(t *testing.T) {
 	recorder := requestAPI(t, "GET", "/hydrate", nil)
 	assert.Equal(t, "Let's hydrate!", recorder.Body.String())
+}
+
+func TestHydrateEndpointPostReturns200ForValidRequest(t *testing.T) {
+	bodyReader := strings.NewReader(`{"user":"someuser"}`)
+	recorder := requestAPI(t, "POST", "/hydrate", bodyReader)
+	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 }
 
 func requestAPI(t *testing.T, method, url string, body io.Reader) *httptest.ResponseRecorder {

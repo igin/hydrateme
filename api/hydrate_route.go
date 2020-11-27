@@ -5,7 +5,12 @@ import (
 	"net/http"
 )
 
-// HydrateRoute handles creation of hydration alerts
-func HydrateRoute(w http.ResponseWriter, r *http.Request) {
+// GetHydrateRoute handles creation of hydration alerts
+func GetHydrateRoute(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, "Let's hydrate!")
+}
+
+// CreateHydrateRoute handles creation of hydration alerts
+func CreateHydrateRoute(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, "Let's hydrate!")
 }
