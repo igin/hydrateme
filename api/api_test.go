@@ -35,6 +35,18 @@ func TestHydrateEndpointPostReturns200ForValidRequest(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 }
 
+func TestHydrateEndpointPostReturns400ForInvalidJSONRequest(t *testing.T) {
+	bodyReader := strings.NewReader(`novalidjsonething":"someuser"}`)
+	recorder := requestAPI(t, "POST", "/hydrate", bodyReader)
+	assert.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
+}
+
+func TestHydrateEndpointPostReturns400IfNoUserIsProvided(t *testing.T) {
+	bodyReader := strings.NewReader(`{"something":"someuser"}`)
+	recorder := requestAPI(t, "POST", "/hydrate", bodyReader)
+	assert.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
+}
+
 func requestAPI(t *testing.T, method, url string, body io.Reader) *httptest.ResponseRecorder {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
