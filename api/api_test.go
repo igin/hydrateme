@@ -1,10 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,21 +31,40 @@ func TestHydrateEndpointReturnsMessage(t *testing.T) {
 }
 
 func TestHydrateEndpointPostReturns200ForValidRequest(t *testing.T) {
-	bodyReader := strings.NewReader(`{"user":"someuser"}`)
-	recorder := requestAPI(t, "POST", "/hydrate", bodyReader)
+	recorder := requestAPI(t, "POST", "/hydrate?response_url=something.com", nil)
 	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 }
 
-func TestHydrateEndpointPostReturns400ForInvalidJSONRequest(t *testing.T) {
-	bodyReader := strings.NewReader(`novalidjsonething":"someuser"}`)
-	recorder := requestAPI(t, "POST", "/hydrate", bodyReader)
-	assert.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
+func TestHydrateEndpointPostReturns200WithUrlParams(t *testing.T) {
+	recorder := requestAPI(t, "POST", "/hydrate?response_url=something", nil)
+	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 }
 
-func TestHydrateEndpointPostReturns400IfNoUserIsProvided(t *testing.T) {
-	bodyReader := strings.NewReader(`{"something":"someuser"}`)
-	recorder := requestAPI(t, "POST", "/hydrate", bodyReader)
-	assert.Equal(t, http.StatusBadRequest, recorder.Result().StatusCode)
+type ReturnMessage struct {
+	Text string `json:"text"`
+}
+
+func TestHydrateEndpointSendsMessageToReturnUrl(t *testing.T) {
+	apiCalled := false
+	var message ReturnMessage
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		apiCalled = true
+
+		decoder := json.NewDecoder(r.Body)
+		err := decoder.Decode(&message)
+		if err != nil {
+			t.Fatalf("Got an error while decoding the message sent back to slack")
+		}
+
+		fmt.Fprintf(w, "Thanks for your response")
+	}))
+	defer ts.Close()
+	recorder := requestAPI(t, "POST", fmt.Sprintf("/hydrate?response_url=%s", ts.URL), nil)
+	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
+	assert.True(t, apiCalled)
+	assert.Equal(t, ReturnMessage{Text: "something"}, message)
+
 }
 
 func requestAPI(t *testing.T, method, url string, body io.Reader) *httptest.ResponseRecorder {
