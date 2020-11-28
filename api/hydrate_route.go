@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httputil"
 
 	"github.com/gorilla/schema"
 )
@@ -44,8 +45,24 @@ var decoder = schema.NewDecoder()
 
 // CreateHydrateRoute handles creation of hydration alerts
 func CreateHydrateRoute(w http.ResponseWriter, r *http.Request) {
+	x, err := httputil.DumpRequest(r, true)
+	if err != nil {
+		log.Printf("Failed to dump request with error %s", err.Error())
+		http.Error(w, "Failed to parse form in hydrate route with error %s", http.StatusBadRequest)
+		return
+	}
+
+	err = r.ParseForm()
+	if err != nil {
+		log.Printf("Failed to parse form in hydrate route with error %s", err.Error())
+		http.Error(w, "Failed to parse form in hydrate route with error %s", http.StatusBadRequest)
+		return
+	}
+
+	log.Println(fmt.Sprintf("%q", x))
+
 	var command slackCommandFormValues
-	err := decoder.Decode(&command, r.URL.Query())
+	err = decoder.Decode(&command, r.PostForm)
 	if err != nil {
 		log.Printf("Failed to parse form in hydrate route with error %s", err.Error())
 		http.Error(w, "Failed to parse form in hydrate route with error %s", http.StatusBadRequest)

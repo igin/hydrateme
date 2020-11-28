@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,13 +31,8 @@ func TestHydrateEndpointReturnsMessage(t *testing.T) {
 	assert.Equal(t, "Let's hydrate!", recorder.Body.String())
 }
 
-func TestHydrateEndpointPostReturns200ForValidRequest(t *testing.T) {
-	recorder := requestAPI(t, "POST", "/hydrate?response_url=something.com", nil)
-	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
-}
-
 func TestHydrateEndpointPostReturns200WithUrlParams(t *testing.T) {
-	recorder := requestAPI(t, "POST", "/hydrate?response_url=something", nil)
+	recorder := requestAPI(t, "POST", "/hydrate", strings.NewReader("response_url=something"))
 	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 }
 
@@ -60,7 +56,7 @@ func TestHydrateEndpointSendsMessageToReturnUrl(t *testing.T) {
 		fmt.Fprintf(w, "Thanks for your response")
 	}))
 	defer ts.Close()
-	recorder := requestAPI(t, "POST", fmt.Sprintf("/hydrate?response_url=%s", ts.URL), nil)
+	recorder := requestAPI(t, "POST", fmt.Sprintf("/hydrate"), strings.NewReader(fmt.Sprintf("response_url=%s", ts.URL)))
 	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 	assert.True(t, apiCalled)
 	assert.Equal(t, ReturnMessage{Text: "something"}, message)
@@ -72,6 +68,7 @@ func requestAPI(t *testing.T, method, url string, body io.Reader) *httptest.Resp
 	if err != nil {
 		t.Fatal(err)
 	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	rr := httptest.NewRecorder()
 	router := BuildRouter()
