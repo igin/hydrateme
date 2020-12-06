@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 
 	"github.com/gorilla/schema"
@@ -14,14 +13,15 @@ import (
 
 // SlackClient enables easy connection to the slack API
 type SlackClient struct {
-	Token string
+	Token   string
+	BaseURL string
 }
 
 const slackAPIBaseURL = "https://slack.com/api/"
 
 // NewSlackClient creates a new slack client with the specified token
 func NewSlackClient(token string) *SlackClient {
-	return &SlackClient{Token: token}
+	return &SlackClient{Token: token, BaseURL: slackAPIBaseURL}
 }
 
 // SlackMethod describes the method executed on the slack API
@@ -41,7 +41,7 @@ func (sc SlackClient) Post(method SlackMethod, payload interface{}, response int
 	payloadEncoder.Encode(payload)
 
 	client := &http.Client{}
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s%s", slackAPIBaseURL, method), payloadBuf)
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s%s", sc.BaseURL, method), payloadBuf)
 
 	if err != nil {
 		return err
@@ -50,12 +50,9 @@ func (sc SlackClient) Post(method SlackMethod, payload interface{}, response int
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sc.Token))
 
-	dump, _ := httputil.DumpRequest(req, true)
-	log.Printf("--> %s %s", req.RequestURI, dump)
-
+	logRequest(req)
 	resp, err := client.Do(req)
-	dump, _ = httputil.DumpResponse(resp, true)
-	log.Printf("<-- %s %s", resp.Status, dump)
+	logResponse(resp)
 
 	if err != nil {
 
@@ -74,7 +71,7 @@ func (sc SlackClient) Get(method SlackMethod, payload interface{}, response inte
 	queryEncoder.Encode(payload, values)
 
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s%s?%s", slackAPIBaseURL, method, values.Encode()), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s%s?%s", sc.BaseURL, method, values.Encode()), nil)
 
 	if err != nil {
 		return err
@@ -83,18 +80,22 @@ func (sc SlackClient) Get(method SlackMethod, payload interface{}, response inte
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", sc.Token))
 
-	dump, _ := httputil.DumpRequest(req, true)
-	log.Printf("--> %s %s", req.RequestURI, dump)
-
+	logRequest(req)
 	resp, err := client.Do(req)
-	dump, _ = httputil.DumpResponse(resp, true)
-	log.Printf("<-- %s %s", resp.Status, dump)
+	logResponse(resp)
 
 	if err != nil {
-
 		return err
 	}
 
 	responseDecoder := json.NewDecoder(resp.Body)
 	return responseDecoder.Decode(response)
+}
+
+func logRequest(req *http.Request) {
+	log.Printf("--> %s %s", req.Method, req.URL.String())
+}
+
+func logResponse(resp *http.Response) {
+	log.Printf("<-- %s", resp.Status)
 }
