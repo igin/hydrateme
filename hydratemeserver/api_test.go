@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -28,7 +29,9 @@ func TestHydrateEndpointReturnsMessage(t *testing.T) {
 }
 
 func TestHydrateEndpointPostReturns200WithUrlParams(t *testing.T) {
-	recorder := requestAPI(t, "POST", "/hydrate", strings.NewReader("response_url=something&user_id=someuser"))
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {}))
+	defer ts.Close()
+	recorder := requestAPI(t, "POST", "/hydrate", strings.NewReader(fmt.Sprintf("response_url=%s&user_id=someuser", url.QueryEscape(ts.URL))))
 	assert.Equal(t, http.StatusOK, recorder.Result().StatusCode)
 }
 

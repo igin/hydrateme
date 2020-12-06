@@ -48,52 +48,39 @@ var decoder = schema.NewDecoder()
 
 // CreateHydrateRoute handles creation of hydration alerts
 func CreateHydrateRoute(w http.ResponseWriter, r *http.Request) {
-	x, err := httputil.DumpRequest(r, true)
+	err := handleHydrationRequest(r)
 	if err != nil {
-		log.Printf("Failed to dump request with error %s", err.Error())
-		http.Error(w, "Failed to parse form in hydrate route with error %s", http.StatusBadRequest)
-		return
+		dump, _ := httputil.DumpRequest(r, true)
+		log.Fatalf("Failed to create hydration request with error %s. \nRequest:\n %s", err.Error(), dump)
+		http.Error(w, fmt.Sprintf("Failed to create hydration task with error %s", err.Error()), http.StatusBadRequest)
 	}
 
-	err = r.ParseForm()
-	if err != nil {
-		log.Printf("Failed to parse form in hydrate route with error %s", err.Error())
-		http.Error(w, "Failed to parse form in hydrate route with error %s", http.StatusBadRequest)
-		return
-	}
-
-	log.Println(fmt.Sprintf("%q", x))
-
-	var command slackCommandFormValues
-	decoder.IgnoreUnknownKeys(true)
-	err = decoder.Decode(&command, r.PostForm)
-	if err != nil {
-		log.Printf("Failed to parse form in hydrate route with error %s", err.Error())
-		http.Error(w, "Failed to parse form in hydrate route with error %s", http.StatusBadRequest)
-		return
-	}
-
-	_, err = createHydrationTask(&command)
-	if err != nil {
-		log.Printf("Failed to create hydration task with error %s", err.Error())
-		http.Error(w, "Failed to create hydration task with error %s", http.StatusBadRequest)
-		return
-	}
-
-	respondToCommand(&command, "something")
-
-	returnURL := command.ResponseURL
-
-	response := slackResponseMessage{
-		Text: "something",
-	}
-
-	payloadBuf := new(bytes.Buffer)
-	messageEncoder := json.NewEncoder(payloadBuf)
-	messageEncoder.Encode(response)
-
-	http.Post(returnURL, "application/json", payloadBuf)
 	fmt.Fprint(w, "Let's hydrate!")
+}
+
+func handleHydrationRequest(r *http.Request) error {
+	command, err := parseCommand(r)
+	if err != nil {
+		return err
+	}
+	_, err = createHydrationTask(command)
+	if err != nil {
+		return err
+	}
+
+	return respondToCommand(command, "something")
+}
+
+func parseCommand(r *http.Request) (*slackCommandFormValues, error) {
+	err := r.ParseForm()
+	if err != nil {
+		return nil, err
+	}
+
+	command := &slackCommandFormValues{}
+	decoder.IgnoreUnknownKeys(true)
+	err = decoder.Decode(command, r.PostForm)
+	return command, err
 }
 
 // HydrationTask represents a notification configuration for a specific slack user
@@ -124,7 +111,7 @@ type respondable struct {
 	ResponseURL string
 }
 
-func respondToCommand(command *slackCommandFormValues, message string) {
+func respondToCommand(command *slackCommandFormValues, message string) error {
 	returnURL := command.ResponseURL
 
 	response := slackResponseMessage{
@@ -135,5 +122,6 @@ func respondToCommand(command *slackCommandFormValues, message string) {
 	messageEncoder := json.NewEncoder(payloadBuf)
 	messageEncoder.Encode(response)
 
-	http.Post(returnURL, "application/json", payloadBuf)
+	_, err := http.Post(returnURL, "application/json", payloadBuf)
+	return err
 }
