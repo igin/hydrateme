@@ -1,0 +1,4 @@
+cron:
+- description: "send alerts"
+  url: /alerts/send
+  schedule: every 1 minutes

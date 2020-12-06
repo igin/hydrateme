@@ -26,6 +26,12 @@ func BuildRoutes() []Route {
 			CreateHydrateRoute,
 		},
 		{
+			"Send alerts",
+			"GET",
+			"/alerts/send",
+			SendAlertsRoute,
+		},
+		{
 			"Default Route",
 			"GET",
 			"/",
