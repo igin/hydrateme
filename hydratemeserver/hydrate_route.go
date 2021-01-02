@@ -2,17 +2,32 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
+	"hydratemeserver/database"
 	"log"
 	"net/http"
-	"net/http/httputil"
-	"time"
 
-	"cloud.google.com/go/datastore"
 	"github.com/gorilla/schema"
 )
+
+func returnError(w http.ResponseWriter, errorMessage string, status int) {
+	log.Println(errorMessage)
+	http.Error(w, errorMessage, status)
+}
+
+// GetHydrateRoute handles creation of hydration alerts
+func GetHydrateRoute(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userID")
+	tasks, err := database.GetHydrationTasksOfUser(userID)
+	if err != nil {
+		returnError(w, fmt.Sprintf("Couldn't get tasks. Error: %s", err.Error()), http.StatusBadRequest)
+		return
+	}
+
+	messageEncoder := json.NewEncoder(w)
+	messageEncoder.Encode(tasks)
+}
 
 // StartHydrationRequest is a request to start hydration alerts
 type StartHydrationRequest struct {
@@ -39,23 +54,17 @@ type slackResponseMessage struct {
 	Text string `json:"text"`
 }
 
-// GetHydrateRoute handles creation of hydration alerts
-func GetHydrateRoute(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Let's hydrate!")
-}
-
 var decoder = schema.NewDecoder()
 
 // CreateHydrateRoute handles creation of hydration alerts
 func CreateHydrateRoute(w http.ResponseWriter, r *http.Request) {
 	err := handleHydrationRequest(r)
 	if err != nil {
-		dump, _ := httputil.DumpRequest(r, true)
-		log.Fatalf("Failed to create hydration request with error %s. \nRequest:\n %s", err.Error(), dump)
-		http.Error(w, fmt.Sprintf("Failed to create hydration task with error %s", err.Error()), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Failed to create hydration task with error: %s", err.Error()), http.StatusBadRequest)
+		return
 	}
 
-	fmt.Fprint(w, "Let's hydrate!")
+	fmt.Fprint(w, "Thanks for you hydration request.")
 }
 
 func handleHydrationRequest(r *http.Request) error {
@@ -63,12 +72,13 @@ func handleHydrationRequest(r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	_, err = createHydrationTask(command)
+	_, err = database.CreateHydrationTask(command.UserID)
 	if err != nil {
 		return err
 	}
 
-	return respondToCommand(command, "something")
+	err = respondToCommand(command, "You are going to be hydrated soon.")
+	return nil
 }
 
 func parseCommand(r *http.Request) (*slackCommandFormValues, error) {
@@ -81,30 +91,6 @@ func parseCommand(r *http.Request) (*slackCommandFormValues, error) {
 	decoder.IgnoreUnknownKeys(true)
 	err = decoder.Decode(command, r.PostForm)
 	return command, err
-}
-
-// HydrationTask represents a notification configuration for a specific slack user
-type HydrationTask struct {
-	DateCreated           time.Time
-	SlackUserID           string
-	SlackWorkspaceID      string
-	AlertFrequencyMinutes int
-	StartTime             time.Time
-	EndTime               time.Time
-}
-
-func createHydrationTask(command *slackCommandFormValues) (*datastore.Key, error) {
-	ctx := context.Background()
-	client, err := datastore.NewClient(ctx, datastore.DetectProjectID)
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-	task := &HydrationTask{
-		SlackUserID: command.UserID,
-	}
-	key := datastore.IncompleteKey("HydrationTask", nil)
-	return client.Put(ctx, key, task)
 }
 
 type respondable struct {

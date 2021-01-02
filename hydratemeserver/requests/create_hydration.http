@@ -1,0 +1,7 @@
+POST http://localhost:8080/hydrate HTTP/1.1
+Content-Type: application/x-www-form-urlencoded
+
+user_id=U013EN1K59T
+&response_url=http://localhost:9000
+
+
