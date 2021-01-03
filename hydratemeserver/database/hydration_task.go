@@ -51,7 +51,7 @@ func GetHydrationTasksOfUser(userID string) ([]HydrationTask, error) {
 	return parseTasksFromQueryResult(it)
 }
 
-const hydrationSpacing = 5.0 * time.Minute
+const hydrationSpacing = 90 * time.Minute
 
 // GetOverdueHydrationTasks gets all hydration tasks that are overdue
 func GetOverdueHydrationTasks() ([]HydrationTask, error) {
