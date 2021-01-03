@@ -2,10 +2,10 @@ build:
 	go build
 
 run: # Run the app locally with the appengine dev server
-	dev_appserver.py .
+	DATASTORE_EMULATOR_HOST=localhost:8081 dev_appserver.py .
 
 deploy: # Deploy api to google appengine
-	gcloud app deploy
+	gcloud app deploy && gcloud app deploy cron.yaml
 
 test:
 	DATASTORE_EMULATOR_HOST=localhost:8081 go test 
