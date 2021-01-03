@@ -10,12 +10,12 @@ import (
 
 // HydrationTask represents a notification configuration for a specific slack user
 type HydrationTask struct {
+	ID                    *datastore.Key `datastore:"__key__"`
 	DateCreated           time.Time
 	SlackUserID           string
 	SlackWorkspaceID      string
 	AlertFrequencyMinutes int
-	StartTime             time.Time
-	EndTime               time.Time
+	LastHydration         time.Time
 }
 
 const kindHydrationTask = "HydrationTask"
@@ -48,6 +48,55 @@ func GetHydrationTasksOfUser(userID string) ([]HydrationTask, error) {
 		Filter("SlackUserID =", userID)
 	it := client.Run(ctx, query)
 
+	return parseTasksFromQueryResult(it)
+}
+
+const hydrationSpacing = 5.0 * time.Minute
+
+// GetOverdueHydrationTasks gets all hydration tasks that are overdue
+func GetOverdueHydrationTasks() ([]HydrationTask, error) {
+	ctx := context.Background()
+	client, err := datastore.NewClient(ctx, datastore.DetectProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer client.Close()
+
+	query := datastore.NewQuery(kindHydrationTask).
+		Filter("LastHydration <", time.Now().Add(-hydrationSpacing))
+	it := client.Run(ctx, query)
+
+	return parseTasksFromQueryResult(it)
+}
+
+// SetWasHydrated sets the task with id as LastHydrated right now
+func SetWasHydrated(taskKey *datastore.Key) error {
+	ctx := context.Background()
+	client, err := datastore.NewClient(ctx, datastore.DetectProjectID)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	tx, err := client.NewTransaction(ctx)
+	if err != nil {
+		return err
+	}
+	var task HydrationTask
+	if err := tx.Get(taskKey, &task); err != nil {
+		return err
+	}
+	task.LastHydration = time.Now()
+	if _, err := tx.Put(taskKey, &task); err != nil {
+		return err
+	}
+	if _, err := tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func parseTasksFromQueryResult(it *datastore.Iterator) ([]HydrationTask, error) {
 	tasks := make([]HydrationTask, 0)
 	for {
 		var task HydrationTask

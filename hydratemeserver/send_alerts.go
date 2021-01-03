@@ -1,7 +1,8 @@
 package main
 
 import (
-	"fmt"
+	"errors"
+	"hydratemeserver/database"
 	"hydratemeserver/slackapi"
 	"log"
 	"net/http"
@@ -10,22 +11,51 @@ import (
 
 // SendAlertsRoute sends alerts to all registered users
 func SendAlertsRoute(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Let's send alerts!")
-	sc := slackapi.NewSlackClient(os.Getenv("SLACK_TOKEN"))
-	uid := "U013EN1K59T"
-	available, err := sc.IsUserAvailable(uid)
+	tasks, err := database.GetOverdueHydrationTasks()
 	if err != nil {
-		log.Fatalf("Failed to retrieve availability: %s", err.Error())
+		log.Printf("Couldn't get hydration tasks: %s", err.Error())
+		return
 	}
 
-	if available {
-		resp, err := sc.SendPrivateMessage(uid, "This is awesome")
+	if len(tasks) == 0 {
+		log.Println("No overdue hydration tasks")
+		return
+	}
+
+	for _, task := range tasks {
+		err := sendHydrationAlertToUser(task.SlackUserID)
 		if err != nil {
-			log.Fatalf("Failed to send private message: %s", err.Error())
+			log.Printf("Couldn't send hydration request: %s", err.Error())
+			continue
 		}
 
-		if !resp.Ok {
-			log.Fatalf("Slack responded with ok=false indicating that the message was not sent")
+		err = database.SetWasHydrated(task.ID)
+		if err != nil {
+			log.Printf("Couldn't update hydration task: %s", err.Error())
 		}
+
 	}
+
+}
+
+func sendHydrationAlertToUser(slackUserID string) error {
+	log.Printf("Sending alert to slack user: %s", slackUserID)
+	sc := slackapi.NewSlackClient(os.Getenv("SLACK_TOKEN"))
+	available, err := sc.IsUserAvailable(slackUserID)
+	if err != nil || !available {
+		return errors.New("The user is currently not available")
+	}
+
+	resp, err := sc.SendPrivateMessage(slackUserID, "Are you hydrated?")
+	if err != nil {
+		log.Printf("Failed to send private message: %s", err.Error())
+		return err
+	}
+
+	if !resp.Ok {
+		log.Printf("Slack responded with ok=false indicating that the message was not sent")
+		return errors.New("Slack responded with ok=false indicating that the message was not sent")
+	}
+
+	return nil
 }
